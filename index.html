@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SENTRY S-1 // GLOBAL DEFENSE NETWORK</title>
+    <meta name="description" content="Next-generation residential security robotics.">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'gold': '#dcc495',
+                        'black': '#050505',
+                        'panel': '#0a0a0a',
+                        'accent': '#c2410c',
+                        'safe': '#10b981',
+                        'dim': '#4b4b4b'
+                    },
+                    fontFamily: {
+                        'display': ['"Chakra Petch"', 'sans-serif'],
+                        'mono': ['"Space Mono"', 'monospace'],
+                    },
+                    cursor: { 'none': 'none' }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #050505;
+            color: #dcc495;
+            overflow-x: hidden;
+            margin: 0;
+            cursor: none;
+        }
+
+        /* 3D Layer */
+        #canvas-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            z-index: 0; outline: none; transition: filter 0.3s ease;
+        }
+        
+        /* FX Overlays */
+        .noise-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://grainy-gradients.vercel.app/noise.svg');
+            opacity: 0.03; pointer-events: none; z-index: 40;
+        }
+        .vignette {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.95) 100%);
+            pointer-events: none; z-index: 30;
+        }
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.05) 50%, rgba(0,0,0,0.05));
+            background-size: 100% 4px;
+            pointer-events: none; z-index: 35;
+        }
+        .nv-active {
+            filter: sepia(1) hue-rotate(70deg) contrast(1.5) brightness(1.1) saturate(2.5);
+        }
+
+        /* Cursor */
+        #cursor {
+            position: fixed; top: 0; left: 0; width: 20px; height: 20px;
+            border: 1px solid #dcc495; border-radius: 50%;
+            pointer-events: none; z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: width 0.2s, height 0.2s;
+            mix-blend-mode: difference;
+        }
+        #cursor-dot {
+            position: fixed; top: 0; left: 0; width: 4px; height: 4px;
+            background-color: #c2410c; border-radius: 50%;
+            pointer-events: none; z-index: 9999;
+            transform: translate(-50%, -50%);
+        }
+        body:hover #cursor.hovered { width: 50px; height: 50px; background: rgba(220,196,149,0.1); }
+
+        /* UI Components */
+        .glass-card {
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .glass-card:hover {
+            border-color: #dcc495;
+            background: rgba(15, 15, 15, 0.95);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 40px -10px rgba(194, 65, 12, 0.3);
+        }
+
+        .price-card {
+            background: rgba(5, 5, 5, 0.9); border: 1px solid #333; transition: 0.3s;
+        }
+        .price-card:hover { border-color: #dcc495; transform: scale(1.02); }
+
+        .magnetic-btn { transition: transform 0.2s ease-out; }
+        
+        .log-text { font-family: 'Space Mono', monospace; font-size: 10px; color: #666; line-height: 1.5; }
+
+        /* Loader */
+        #loader {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: #050505; z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+            flex-direction: column;
+        }
+
+        /* Calibration Panel */
+        #cal-panel {
+            display: none; position: fixed; top: 80px; right: 20px; width: 280px;
+            background: rgba(10, 10, 10, 0.95); border: 1px solid #c2410c; 
+            padding: 20px; z-index: 6000;
+        }
+    </style>
+</head>
+<body class="font-display selection:bg-accent selection:text-white">
+
+    <div id="cursor"></div><div id="cursor-dot"></div>
+    <div class="noise-overlay"></div>
+    <div class="vignette"></div>
+    <div class="scanlines"></div>
+
+    <div id="loader">
+        <div class="text-4xl font-bold tracking-widest mb-4 text-white">SENTRY OS</div>
+        <div class="w-64 h-1 bg-dim relative overflow-hidden">
+            <div id="progress-bar" class="absolute top-0 left-0 h-full bg-accent w-0 transition-all duration-200"></div>
+        </div>
+        <div id="loading-text" class="mt-2 font-mono text-xs text-dim">CALIBRATING OPTICS...</div>
+    </div>
+
+    <div id="cal-panel">
+        <div class="flex justify-between items-center mb-4 border-b border-accent pb-2">
+            <h3 class="text-accent font-bold text-xs tracking-widest">FIELD CALIBRATION</h3>
+            <button onclick="document.getElementById('cal-panel').style.display='none'" class="text-dim hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="space-y-4">
+            <div><label class="text-[10px] block text-gold">VERTICAL (Y)</label><input type="range" id="y-pos" min="-5" max="5" step="0.1" value="-0.6" class="w-full accent-accent"></div>
+            <div><label class="text-[10px] block text-gold">ZOOM (Z)</label><input type="range" id="z-pos" min="1" max="10" step="0.1" value="2.5" class="w-full accent-accent"></div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <nav class="fixed top-0 w-full h-20 z-40 flex justify-between items-center px-6 md:px-12 border-b border-white/5 bg-black/80 backdrop-blur-md">
+        <div class="font-bold text-2xl tracking-widest uppercase flex items-center gap-2 hover-trigger">
+            <i class="fas fa-shield-alt text-gold"></i> SAOGZAA
+        </div>
+        <div class="hidden md:flex gap-8 text-xs font-mono uppercase tracking-widest interactive items-center">
+            <a href="#features" class="hover:text-white transition-colors hover-trigger">System</a>
+            <a href="#integration" class="hover:text-white transition-colors hover-trigger">Integrations</a>
+            <a href="#specs" class="hover:text-white transition-colors hover-trigger">Specs</a>
+            <button onclick="document.getElementById('cal-panel').style.display='block'" class="text-dim hover:text-accent transition hover-trigger" title="Manual Override">
+                <i class="fas fa-crosshairs"></i>
+            </button>
+            <a href="#pricing" class="bg-gold text-black font-bold px-6 py-2 hover:bg-white transition magnetic-btn">
+                PRE-ORDER
+            </a>
+        </div>
+    </nav>
+
+    <section id="overview" class="relative w-full h-screen flex flex-col justify-center px-6 md:px-12 pointer-events-none z-10">
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full text-center opacity-5 select-none">
+            <h1 class="text-[15vw] leading-none font-bold text-outline uppercase">DEFENSE</h1>
+        </div>
+
+        <div class="w-full max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end h-full pb-24">
+            <div class="max-w-lg interactive pointer-events-auto hero-anim">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="px-2 py-1 bg-accent/20 border border-accent text-accent text-[10px] font-bold tracking-widest">RESIDENTIAL CLASS A</span>
+                    <span class="text-dim text-[10px] font-mono">NET: SECURE</span>
+                </div>
+                <h2 class="text-6xl md:text-7xl font-bold uppercase leading-[0.9] mb-6 text-white">
+                    Absolute <br> <span class="text-gold">Security.</span>
+                </h2>
+                <p class="font-mono text-sm text-gray-400 mb-8 leading-relaxed glass-card p-6 rounded-bl-3xl border-l-4 border-gold">
+                    The Sentry S-1 is the pinnacle of autonomous home protection. Military-grade patrol algorithms, non-lethal deterrence, and family-recognition AI ensure your estate remains impenetrable.
+                </p>
+                <div class="flex gap-4">
+                     <button id="scan-btn" class="bg-transparent border border-gold text-gold px-8 py-4 font-bold uppercase tracking-wider hover:bg-gold hover:text-black transition flex items-center gap-3 magnetic-btn">
+                        <i class="fas fa-radar"></i> SYSTEM SCAN
+                    </button>
+                    <button id="nv-btn" class="bg-dim/20 text-gray-400 px-6 py-4 font-bold hover:text-white hover:bg-dim/40 transition magnetic-btn">
+                        <i class="fas fa-eye"></i> NIGHT OPTICS
+                    </button>
+                </div>
+            </div>
+
+            <div class="hidden md:flex flex-col items-end gap-4 interactive hero-anim">
+                <div class="glass-card p-6 w-80 rounded-tr-3xl border-r-4 border-accent">
+                    <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+                        <span class="text-xs font-mono text-gray-500">DIAGNOSTICS</span>
+                        <span class="text-xs font-bold text-safe animate-pulse">● OPTIMAL</span>
+                    </div>
+                    
+                    <div class="h-32 overflow-hidden relative mb-4 bg-black/40 p-2 rounded border border-white/5">
+                        <div id="console-log" class="font-mono text-[10px] text-dim leading-tight absolute bottom-2 w-full">
+                            > INITIALIZING CORE...<br>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-black/50 p-2 text-center rounded border border-white/5">
+                            <div class="text-gold text-lg font-bold">98%</div>
+                            <div class="text-[8px] text-gray-500">FUSION CELL</div>
+                        </div>
+                        <div class="bg-black/50 p-2 text-center rounded border border-white/5">
+                            <div class="text-safe text-lg font-bold">0ms</div>
+                            <div class="text-[8px] text-gray-500">LATENCY</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="w-full bg-accent text-black py-2 overflow-hidden relative z-20 border-y border-white/20">
+        <div class="whitespace-nowrap font-mono text-xs font-bold tracking-widest animate-marquee">
+            WARNING: AUTHORIZED PERSONNEL ONLY // HIGH VOLTAGE SERVOS // CLASS 3 LASER SYSTEM // DO NOT OBSTRUCT SENSORS // BIOMETRIC SCAN IN PROGRESS // 
+            WARNING: AUTHORIZED PERSONNEL ONLY // HIGH VOLTAGE SERVOS // CLASS 3 LASER SYSTEM // DO NOT OBSTRUCT SENSORS // BIOMETRIC SCAN IN PROGRESS // 
+        </div>
+    </div>
+
+    <section id="features" class="w-full py-32 relative z-10 bg-black/90 backdrop-blur-sm">
+        <div class="max-w-7xl mx-auto px-6 md:px-12">
+            <div class="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-dim pb-6">
+                <div>
+                    <h3 class="text-accent font-mono text-xs mb-2">01 // CAPABILITIES</h3>
+                    <h2 class="text-4xl font-bold uppercase text-white">Superiority <span class="text-outline">By Design</span></h2>
+                </div>
+                <div class="text-right text-xs font-mono text-gray-500">
+                    PATENTS: 42<br>ORIGIN: EARTH
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass-card p-8 group cursor-none interactive hover-trigger">
+                    <i class="fas fa-fingerprint text-3xl text-dim mb-6 group-hover:text-gold transition"></i>
+                    <h3 class="text-xl font-bold uppercase mb-3 text-white">Biometric Gatekeeper</h3>
+                    <p class="text-sm font-mono text-gray-400 leading-relaxed">
+                        Instantly recognizes residents via facial geometry. Unknown subjects trigger a silent alert immediately.
+                    </p>
+                </div>
+                <div class="glass-card p-8 group cursor-none interactive hover-trigger">
+                    <i class="fas fa-shield-alt text-3xl text-dim mb-6 group-hover:text-gold transition"></i>
+                    <h3 class="text-xl font-bold uppercase mb-3 text-white">Titanium Chassis</h3>
+                    <p class="text-sm font-mono text-gray-400 leading-relaxed">
+                        Constructed from aerospace-grade titanium alloy. IP68 Weatherproof and impact-hardened against blunt force.
+                    </p>
+                </div>
+                <div class="glass-card p-8 group cursor-none interactive hover-trigger">
+                    <i class="fas fa-volume-up text-3xl text-dim mb-6 group-hover:text-gold transition"></i>
+                    <h3 class="text-xl font-bold uppercase mb-3 text-white">Active Deterrence</h3>
+                    <p class="text-sm font-mono text-gray-400 leading-relaxed">
+                        Escalation protocols include 120dB sirens, 10k lumen strobes, and two-way command audio.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="integration" class="w-full py-20 bg-panel relative z-10 border-t border-dim/20">
+        <div class="max-w-7xl mx-auto px-6 md:px-12 text-center">
+            <h3 class="text-accent font-mono text-xs mb-4">02 // CONNECTIVITY</h3>
+            <h2 class="text-3xl font-bold uppercase text-white mb-12">Smart Home <span class="text-gold">Ecosystem</span></h2>
+            
+            <div class="flex flex-wrap justify-center gap-8 opacity-70 grayscale hover:grayscale-0 transition duration-500">
+                <div class="glass-card px-8 py-4 flex items-center gap-4 interactive">
+                    <i class="fab fa-apple text-2xl text-white"></i>
+                    <span class="font-bold text-white">HomeKit</span>
+                </div>
+                <div class="glass-card px-8 py-4 flex items-center gap-4 interactive">
+                    <i class="fab fa-google text-2xl text-white"></i>
+                    <span class="font-bold text-white">Google Home</span>
+                </div>
+                <div class="glass-card px-8 py-4 flex items-center gap-4 interactive">
+                    <i class="fab fa-amazon text-2xl text-white"></i>
+                    <span class="font-bold text-white">Alexa</span>
+                </div>
+                <div class="glass-card px-8 py-4 flex items-center gap-4 interactive">
+                    <i class="fas fa-wifi text-2xl text-white"></i>
+                    <span class="font-bold text-white">Starlink</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="specs" class="w-full py-32 relative z-10">
+        <div class="absolute inset-0 bg-grid opacity-10 pointer-events-none"></div>
+        <div class="max-w-7xl mx-auto px-6 md:px-12 relative">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-20">
+                <div>
+                    <h3 class="text-accent font-mono text-xs mb-2">03 // HARDWARE DATA</h3>
+                    <h2 class="text-4xl font-bold uppercase text-white mb-10">Specifications</h2>
+                    <div class="divide-y divide-dim/30 border-t border-b border-dim/30">
+                        <div class="py-4 flex justify-between hover:bg-white/5 px-4 transition interactive">
+                            <span class="font-mono text-gray-400">RUNTIME</span><span class="font-bold text-gold">48 Hours</span>
+                        </div>
+                        <div class="py-4 flex justify-between hover:bg-white/5 px-4 transition interactive">
+                            <span class="font-mono text-gray-400">TOP SPEED</span><span class="font-bold text-gold">35 km/h</span>
+                        </div>
+                        <div class="py-4 flex justify-between hover:bg-white/5 px-4 transition interactive">
+                            <span class="font-mono text-gray-400">OPTICS</span><span class="font-bold text-gold">LiDAR + Thermal + 4K</span>
+                        </div>
+                        <div class="py-4 flex justify-between hover:bg-white/5 px-4 transition interactive">
+                            <span class="font-mono text-gray-400">ARMOR</span><span class="font-bold text-gold">Level III Ballistic</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col justify-center">
+                    <div class="glass-card p-8 border-l-4 border-safe mb-8">
+                        <h4 class="text-safe font-bold text-sm mb-2 tracking-widest uppercase">Pet Safe Protocol</h4>
+                        <p class="text-sm font-mono text-gray-300 leading-relaxed">
+                            Advanced movement algorithms distinguish between your dog, a stray cat, and a crouching intruder. Zero false alarms guaranteed.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="pricing" class="w-full py-32 bg-black relative z-10 border-t border-white/10">
+        <div class="max-w-7xl mx-auto px-6 md:px-12">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold uppercase text-white mb-4">Secure Your <span class="text-outline">Legacy</span></h2>
+                <p class="text-gray-500 font-mono text-sm">Financing available via Saogzaa Financial.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="price-card p-8 flex flex-col interactive hover-trigger">
+                    <div class="text-xs font-bold text-gray-500 tracking-widest mb-4">CIVILIAN</div>
+                    <div class="text-4xl font-bold text-white mb-2">$4,999</div>
+                    <ul class="space-y-4 text-sm font-mono text-gray-400 mb-8 flex-grow">
+                        <li>• 8hr Patrol Battery</li>
+                        <li>• 1080p Recording</li>
+                        <li>• Standard Alloy</li>
+                    </ul>
+                    <button class="w-full border border-dim text-white py-4 hover:bg-dim transition uppercase text-xs font-bold tracking-widest magnetic-btn">Configure</button>
+                </div>
+                <div class="price-card p-8 flex flex-col relative transform md:-translate-y-4 bg-white/5 border-gold interactive hover-trigger">
+                    <div class="absolute top-0 right-0 bg-gold text-black text-[9px] font-bold px-2 py-1">RECOMMENDED</div>
+                    <div class="text-xs font-bold text-gold tracking-widest mb-4">ESTATE</div>
+                    <div class="text-4xl font-bold text-white mb-2">$8,499</div>
+                    <ul class="space-y-4 text-sm font-mono text-gray-300 mb-8 flex-grow">
+                        <li>• 24hr Patrol Battery</li>
+                        <li>• 4K HDR Vision</li>
+                        <li>• Carbon Fiber Shell</li>
+                    </ul>
+                    <button class="w-full bg-gold text-black py-4 hover:bg-white transition uppercase text-xs font-bold tracking-widest magnetic-btn">Order Now</button>
+                </div>
+                <div class="price-card p-8 flex flex-col interactive hover-trigger">
+                    <div class="text-xs font-bold text-accent tracking-widest mb-4">BUNKER</div>
+                    <div class="text-4xl font-bold text-white mb-2">$14,999</div>
+                    <ul class="space-y-4 text-sm font-mono text-gray-400 mb-8 flex-grow">
+                        <li>• 48hr Fusion Cell</li>
+                        <li>• Thermal / Night Vision</li>
+                        <li>• Ballistic Armor Lvl 3</li>
+                    </ul>
+                    <button class="w-full border border-accent text-accent py-4 hover:bg-accent hover:text-black transition uppercase text-xs font-bold tracking-widest magnetic-btn">Contact Sales</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="w-full py-20 bg-panel relative z-10 border-t border-white/5">
+        <div class="max-w-7xl mx-auto px-6 md:px-12">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="glass-card p-6">
+                    <p class="text-sm text-gray-400 italic mb-4">"The Sentry system identified a trespasser 300 meters out and engaged floodlights before I even woke up. Absolute peace of mind."</p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gray-700"></div>
+                        <div class="text-xs font-bold text-white">M. Sterling <span class="text-dim">| CEO, Apex Corp</span></div>
+                    </div>
+                </div>
+                <div class="glass-card p-6">
+                    <p class="text-sm text-gray-400 italic mb-4">"We replaced our entire human night patrol with two S-1 units. Coverage is better, and the cost savings were immediate."</p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gray-700"></div>
+                        <div class="text-xs font-bold text-white">J. Vance <span class="text-dim">| Estate Manager</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="w-full bg-black relative z-10 text-xs font-mono border-t border-white/10">
+        <div class="max-w-7xl mx-auto px-6 md:px-12 py-16 grid grid-cols-1 md:grid-cols-4 gap-12">
+            <div class="col-span-1 md:col-span-2">
+                <div class="text-2xl font-bold text-white mb-6 tracking-widest flex items-center gap-2">
+                    <i class="fas fa-shield-alt text-gold"></i> SAOGZAA
+                </div>
+                <p class="text-gray-500 max-w-sm leading-relaxed mb-6">
+                    Pioneering the future of autonomous robotics. We build the machines that build a safer world.
+                </p>
+            </div>
+            <div>
+                <h4 class="text-white font-bold uppercase mb-6">Company</h4>
+                <ul class="space-y-3 text-gray-500">
+                    <li><a href="#" class="hover:text-gold transition">About Us</a></li>
+                    <li><a href="#" class="hover:text-gold transition">Careers</a></li>
+                    <li><a href="#" class="hover:text-gold transition">Support</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-white font-bold uppercase mb-6">Legal</h4>
+                <ul class="space-y-3 text-gray-500">
+                    <li><a href="#" class="hover:text-gold transition">Privacy</a></li>
+                    <li><a href="#" class="hover:text-gold transition">Terms</a></li>
+                    <li><a href="#" class="hover:text-gold transition">Safety</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="border-t border-white/10 bg-panel py-2 px-6 flex justify-between items-center text-[10px] text-dim uppercase tracking-widest">
+            <div class="flex gap-4">
+                <span>SERVER: <span class="text-safe">ONLINE</span></span>
+                <span>PING: <span class="text-white">12ms</span></span>
+                <span>ENCRYPTION: <span class="text-white">AES-256</span></span>
+            </div>
+            <div>&copy; 2077 SAOGZAA. MADE ON EARTH.</div>
+        </div>
+    </footer>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        gsap.registerPlugin(ScrollTrigger);
+
+        // --- CURSOR LOGIC ---
+        const cursor = document.getElementById('cursor');
+        const cursorDot = document.getElementById('cursor-dot');
+        document.addEventListener('mousemove', (e) => {
+            gsap.to(cursor, { x: e.clientX, y: e.clientY, duration: 0.1, ease: "power2.out" });
+            gsap.to(cursorDot, { x: e.clientX, y: e.clientY, duration: 0 });
+        });
+        document.querySelectorAll('.hover-trigger').forEach(el => {
+            el.addEventListener('mouseenter', () => cursor.classList.add('hovered'));
+            el.addEventListener('mouseleave', () => cursor.classList.remove('hovered'));
+        });
+
+        // --- 3D SCENE ---
+        const container = document.getElementById('canvas-container');
+        const loaderScreen = document.getElementById('loader');
+        const progressBar = document.getElementById('progress-bar');
+        
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.04);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        // LOCKED SETTINGS: Y=1.5, Z=2.5 (ZOOMED IN)
+        camera.position.set(0, 1.5, 2.5); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+        scene.add(ambientLight);
+        const keyLight = new THREE.DirectionalLight(0xdcc495, 2.0);
+        keyLight.position.set(5, 5, 10);
+        keyLight.castShadow = true;
+        scene.add(keyLight);
+        const rimLight = new THREE.SpotLight(0xc2410c, 15);
+        rimLight.position.set(-5, 5, -2);
+        rimLight.lookAt(0, 0, 0);
+        scene.add(rimLight);
+
+        // Flashlight
+        const flashLight = new THREE.SpotLight(0xffffff, 5, 15, 0.6, 0.5, 1);
+        flashLight.position.set(0, 2, 3);
+        flashLight.target.position.set(0, 1, 0);
+        scene.add(flashLight);
+        scene.add(flashLight.target);
+
+        // Model
+        let robot;
+        const loader = new GLTFLoader();
+
+        loader.load('robot.glb', (gltf) => {
+            robot = gltf.scene;
+            const box = new THREE.Box3().setFromObject(robot);
+            const center = box.getCenter(new THREE.Vector3());
+            
+            // Center & Lock Offset
+            robot.position.x -= center.x;
+            robot.position.y -= center.y;
+            robot.position.z -= center.z;
+            
+            // LOCKED Y: -0.6
+            robot.position.y = -0.6; 
+            robot.scale.set(1.0, 1.0, 1.0);
+
+            scene.add(robot);
+
+            robot.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if(child.material) {
+                        child.material.roughness = 0.4;
+                        child.material.metalness = 0.8;
+                    }
+                }
+            });
+
+            gsap.to(loaderScreen, { opacity: 0, duration: 0.8, onComplete: () => loaderScreen.style.display = 'none' });
+            gsap.from(".hero-anim", { y: 50, opacity: 0, duration: 1, stagger: 0.2, ease: "power2.out", delay: 0.5 });
+            initScrollAnimations();
+
+        }, (xhr) => {
+            const percent = (xhr.loaded / xhr.total);
+            progressBar.style.width = `${percent * 100}%`;
+        });
+
+        // Terminal Logic
+        const termOutput = document.getElementById('console-log');
+        const msgs = ["> NET_MESH: SYNCED", "> SENSORS: OK", "> THREAT_SCAN: 0", "> BATTERY: STABLE", "> OPTICS: CLEAR"];
+        let msgIndex = 0;
+        setInterval(() => {
+            if(termOutput) {
+                termOutput.innerHTML += "<br>" + msgs[msgIndex];
+                termOutput.scrollTop = termOutput.scrollHeight;
+                msgIndex = (msgIndex + 1) % msgs.length;
+                if(termOutput.innerHTML.length > 200) termOutput.innerHTML = "> SYSTEM_READY..."; 
+            }
+        }, 1500);
+
+        // Interaction
+        let mouse = new THREE.Vector2();
+        document.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            flashLight.target.position.x = (event.clientX / window.innerWidth - 0.5) * 5;
+            flashLight.target.position.y = -(event.clientY / window.innerHeight - 0.5) * 5 + 1.5;
+        });
+
+        // Scan Mode
+        const scanBtn = document.getElementById('scan-btn');
+        let isScanning = false;
+        scanBtn.addEventListener('click', () => {
+            if(isScanning || !robot) return;
+            isScanning = true;
+            scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SCANNING...';
+            scanBtn.classList.add("bg-gold", "text-black");
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    isScanning = false;
+                    scanBtn.innerHTML = '<i class="fas fa-check"></i> SECURE';
+                    setTimeout(() => { scanBtn.innerHTML = '<i class="fas fa-radar"></i> INITIATE SCAN'; scanBtn.classList.remove("bg-gold", "text-black"); }, 3000);
+                }
+            });
+            tl.to(robot.rotation, { y: -0.8, duration: 1, ease: "power2.inOut" })
+              .to(robot.rotation, { y: 0.8, duration: 2, ease: "power2.inOut" })
+              .to(robot.rotation, { y: 0, duration: 1, ease: "power2.out" });
+        });
+
+        // Night Vision
+        const nvBtn = document.getElementById('nv-btn');
+        let isNV = false;
+        nvBtn.addEventListener('click', () => {
+            isNV = !isNV;
+            const canvas = document.getElementById('canvas-container');
+            if(isNV) {
+                canvas.classList.add('nv-active');
+                nvBtn.innerHTML = '<i class="fas fa-sun"></i> DAY MODE';
+                nvBtn.classList.add('text-safe');
+            } else {
+                canvas.classList.remove('nv-active');
+                nvBtn.innerHTML = '<i class="fas fa-eye"></i> NIGHT OPTICS';
+                nvBtn.classList.remove('text-safe');
+            }
+        });
+
+        // Loop
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            if (robot && !isScanning) {
+                // LOCKED POSITION: No breathing, static height
+                robot.position.y = -0.6; 
+                
+                // CORRECTED LOOK LOGIC:
+                // Mouse UP (+Y) -> Robot UP (-X Rotation)
+                // Mouse RIGHT (+X) -> Robot RIGHT (-Y Rotation)
+                
+                const targetRotX = -mouse.y * 0.8; 
+                const targetRotY = -mouse.x * 0.8; 
+                
+                robot.rotation.x += (targetRotX - robot.rotation.x) * 0.04;
+                robot.rotation.y += (targetRotY - robot.rotation.y) * 0.04;
+                
+                // Subtle Camera Parallax
+                camera.position.x += (mouse.x * 0.1 - camera.position.x) * 0.01;
+                camera.position.y += (1.5 + mouse.y * 0.1 - camera.position.y) * 0.01;
+                camera.lookAt(0, 1.0, 0);
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Scroll Animations
+        function initScrollAnimations() {
+            gsap.to(scene.position, { scrollTrigger: { trigger: "body", start: "top top", end: "bottom bottom", scrub: 1 }, z: -2, y: 1 });
+            gsap.to("#canvas-container", { scrollTrigger: { trigger: "#features", start: "top 80%", end: "bottom top", scrub: true }, filter: "blur(5px) brightness(0.5)" });
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Marquee
+        const style = document.createElement('style');
+        style.innerHTML = `@keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } } .animate-marquee { display: inline-block; animation: marquee 30s linear infinite; }`;
+        document.head.appendChild(style);
+        
+        // Calibration Listeners
+        document.getElementById('y-pos').addEventListener('input', (e) => { if(robot) robot.position.y = parseFloat(e.target.value); });
+        document.getElementById('z-pos').addEventListener('input', (e) => { camera.position.z = parseFloat(e.target.value); });
+    </script>
+</body>
+</html>
